@@ -1,0 +1,22 @@
+trigger: none
+pool:
+  name: Default
+  vmImage: 'windows-latest'
+
+steps:
+- task: AzureKeyVault@2
+  inputs:
+    azureSubscription: 'MyAzureServiceConnection'
+    KeyVaultName: 'myKeyVault'
+    SecretsFilter: 'my-pfx-secret'   # configure names as needed
+
+- powershell: |
+    $pfxBase64 = "$(my-pfx-secret)"
+    if (-not $pfxBase64) { Write-Error 'KeyVault secret (my-pfx-secret) not found'; exit 1 }
+    [IO.File]::WriteAllBytes('agentcert.pfx', [Convert]::FromBase64String($pfxBase64))
+    $pwd = ConvertTo-SecureString -String "$(PfxPassword)" -AsPlainText -Force
+    Import-PfxCertificate -FilePath .\agentcert.pfx -CertStoreLocation Cert:\LocalMachine\My -Password $pwd
+    $thumb = (Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.HasPrivateKey } | Sort-Object NotAfter -Descending | Select-Object -First 1).Thumbprint
+    pwsh -NoProfile -ExecutionPolicy Bypass -File .\"Export O365 mailbox from Security and Compliance.ps1" -Mailbox 'user@contoso.com' -UserFullname 'User Name' -LocalExportLocation 'C:\PSTExports' -MailboxUserCountry 'Australia' -UseAppOnly -AppId '$(AppId)' -CertificateThumbprint $thumb -TenantId '$(TenantId)' -EnableTranscript
+  displayName: 'Run mailbox export (app-only)'
+  pwsh: true
