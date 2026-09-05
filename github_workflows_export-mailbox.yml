@@ -1,0 +1,50 @@
+name: Export O365 Mailbox
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # Daily at 02:00 UTC (optional)
+
+jobs:
+  export-mailbox:
+    name: Export mailbox (self-hosted Windows runner)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get certificate from Key Vault (optional)
+        # This example assumes the PFX base64 and password are stored in repository secrets or Key Vault
+        # You can use the azure/keyvault-secrets action to retrieve secrets from Key Vault.
+        run: echo "KeyVault retrieval step - replace with azure/keyvault-secrets action or platform-specific retrieval as needed"
+
+      - name: Save and import certificate
+        id: import-cert
+        shell: pwsh
+        run: |
+          # Use secrets to pull the PFX base64 and password. Replace with the Key Vault action outputs if you used that.
+          $pfxBase64 = "${{ secrets.PFX_BASE64 }}"
+          if (-not $pfxBase64) { Write-Error 'PFX base64 secret (PFX_BASE64) not set'; exit 1 }
+          [IO.File]::WriteAllBytes('agentcert.pfx', [Convert]::FromBase64String($pfxBase64))
+          $pwd = ConvertTo-SecureString -String "${{ secrets.PFX_SECRET_PASSWORD }}" -AsPlainText -Force
+          Import-PfxCertificate -FilePath .\agentcert.pfx -CertStoreLocation Cert:\LocalMachine\My -Password $pwd
+          $thumb = (Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.HasPrivateKey } | Sort-Object NotAfter -Descending | Select-Object -First 1).Thumbprint
+          Write-Host "Imported cert thumb: $thumb"
+          echo "certthumb=$thumb" >> $GITHUB_OUTPUT
+
+      - name: Run export script (app-only)
+        shell: pwsh
+        run: |
+          $thumb = "${{ steps.import-cert.outputs.certthumb }}"
+          if (-not $thumb) { Write-Error 'Certificate thumb not available'; exit 1 }
+          # Run the PowerShell export script. Adjust mailbox and paths or wire these in via secrets/inputs.
+          & ".\Export O365 mailbox from Security and Compliance.ps1" `
+            -Mailbox 'user@contoso.com' `
+            -UserFullname 'User Name' `
+            -LocalExportLocation 'C:\PSTExports' `
+            -MailboxUserCountry 'Australia' `
+            -UseAppOnly -AppId '${{ secrets.APP_ID }}' -CertificateThumbprint $thumb -TenantId '${{ secrets.TENANT_ID }}' -EnableTranscript
