@@ -266,7 +266,7 @@ Function Start-MailboxSearchExport()
 
 #Connect Exchange online admin center
 Write-Host "Connecting to Exchange Online. Enter your admin credentials in the pop-up (pop-under?) window."
-$Mailbox = "Jimmy.Hoi@eginnovations.com"
+$Mailbox = "Jimmy.Hoi@innovations.com"
 #"Check the Mailbox available in O365 tenant"
 Function Get-MailboxAvailability
 {
